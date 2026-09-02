@@ -129,7 +129,7 @@ void DicomSeries::extractInfo(DcmFileFormat& dcm, DcmDataset* dataset)
 
     // 传输语法
     E_TransferSyntax xfer = dcm.getDataset()->getOriginalXfer();
-    info_.transferSyntax = QString::fromUtf8(DcmXfer(xfer).getXferName().c_str());
+    info_.transferSyntax = QString::fromUtf8(DcmXfer(xfer).getXferName());
 
     infoFilled_ = true;
 }

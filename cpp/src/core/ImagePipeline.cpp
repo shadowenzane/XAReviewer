@@ -277,8 +277,12 @@ cv::Mat ImagePipeline::itkGaussianSmooth(const cv::Mat& gray32, double sigma)
     region.SetSize(size);
     region.SetIndex(start);
     import->SetRegion(region);
-    import->SetSpacing({1.0, 1.0});
-    import->SetOrigin({0.0, 0.0});
+    ImageType::SpacingType spacing;
+    spacing.Fill(1.0);
+    import->SetSpacing(spacing);
+    ImageType::PointType origin;
+    origin.Fill(0.0);
+    import->SetOrigin(origin);
     // ITK 行主序与 cv::Mat 一致（逐行复制，忽略可能的行 padding）
     std::vector<float> buffer(static_cast<size_t>(w) * h);
     for (int y = 0; y < h; ++y)

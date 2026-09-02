@@ -4,7 +4,6 @@
 #include <dcmtk/dcmdata/dcdatset.h>
 #include <dcmtk/dcmdata/dcdeftag.h>
 #include <dcmtk/dcmdata/dcuid.h>
-#include <dcmtk/dcmnet/dcmcond.h>
 #include <dcmtk/dcmnet/scu.h>
 
 #include <QDate>
@@ -35,7 +34,7 @@ PacsResultList PacsFinder::findStudies(const PacsQuery& query, QString* errorMes
     scu.setPeerAETitle(OFString(query.remoteAet.toUtf8().constData()));
     scu.setPeerHostName(OFString(query.host.toUtf8().constData()));
     scu.setPeerPort(static_cast<unsigned short>(query.port));
-    scu.setDimseTimeout(static_cast<int>(query.timeoutSeconds));
+    scu.setDIMSETimeout(static_cast<int>(query.timeoutSeconds));
     scu.setACSETimeout(static_cast<int>(query.timeoutSeconds));
 
     // Presentation Context：Study Root Q/R + Little Endian 显式/隐式
@@ -92,7 +91,7 @@ PacsResultList PacsFinder::findStudies(const PacsQuery& query, QString* errorMes
     for (const auto* resp : responses) {
         if (resp == nullptr || resp->m_dataset == nullptr)
             continue;
-        const DcmDataset* ds = resp->m_dataset;
+        DcmDataset* ds = resp->m_dataset;
 
         PacsStudyResult r;
         OFString v;

@@ -48,7 +48,7 @@ static void saveTestDicom(const std::string& path, int instanceNumber)
     ds->putAndInsertString(DCM_SOPInstanceUID, uid);
     ds->putAndInsertString(DCM_PatientID, "UITEST");
     ds->putAndInsertString(DCM_Modality, "XA");
-    ds->putAndInsertInteger(DCM_InstanceNumber, instanceNumber);
+    ds->putAndInsertString(DCM_InstanceNumber, std::to_string(instanceNumber).c_str());
     ds->putAndInsertString(DCM_PixelSpacing, "0.3\\0.3");
     ds->putAndInsertUint16(DCM_SamplesPerPixel, 1);
     ds->putAndInsertString(DCM_PhotometricInterpretation, "MONOCHROME2");

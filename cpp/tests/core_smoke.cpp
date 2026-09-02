@@ -59,7 +59,7 @@ static void saveTestDicom(const std::string& path, int instanceNumber, int vesse
     ds->putAndInsertString(DCM_PatientName, "Test^Patient");
     ds->putAndInsertString(DCM_Modality, "XA");
     ds->putAndInsertString(DCM_SeriesDescription, "TEST DSA");
-    ds->putAndInsertInteger(DCM_InstanceNumber, instanceNumber);
+    ds->putAndInsertString(DCM_InstanceNumber, std::to_string(instanceNumber).c_str());
     ds->putAndInsertString(DCM_PixelSpacing, "0.2\\0.2");
     ds->putAndInsertString(DCM_RescaleSlope, "0.5");
     ds->putAndInsertString(DCM_RescaleIntercept, "0");
@@ -110,6 +110,11 @@ int main(int argc, char** argv)
     CHECK(series->patientInfo().pixelSpacingY == 0.2, "pixel spacing Y");
     // 排序后首文件 InstanceNumber==0（文件名 img_3），尾文件 InstanceNumber==9（img_66）
     CHECK(series->fileNameAt(0) == QStringLiteral("img_3.dcm"), "sort by InstanceNumber");
+    if (series->fileNameAt(9) != QStringLiteral("img_66.dcm")) {
+        for (int i = 0; i < series->frameCount(); ++i)
+            std::printf("  frame %d -> %s\n", i,
+                        series->fileNameAt(i).toUtf8().constData());
+    }
     CHECK(series->fileNameAt(9) == QStringLiteral("img_66.dcm"), "sort last file");
 
     auto dsa = std::make_shared<DsaSequence>(series);
@@ -220,10 +225,12 @@ int main(int argc, char** argv)
     {
         CHECK(ImagePipeline::availableColorMaps().size() == 10, "10 color maps");
 
-        cv::Mat in = (cv::Mat_<float>(64, 64) << 0);
+        cv::Mat in(64, 64, CV_32FC1, cv::Scalar(0));
         in.at<float>(32, 32) = 1000.0f; // 尖峰
         cv::Mat sm = ImagePipeline::itkGaussianSmooth(in, 2.0);
         CHECK(!sm.empty() && sm.size() == in.size(), "itk smooth size");
+        std::printf("  smooth peak=%f  neighbor=%f\n", sm.at<float>(32, 32),
+                    sm.at<float>(32, 33));
         CHECK(sm.at<float>(32, 32) < 1000.0f, "itk smooth reduces peak");
     }
 

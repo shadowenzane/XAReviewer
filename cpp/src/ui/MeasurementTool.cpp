@@ -77,7 +77,7 @@ void DistanceItem::setSpacing(double spacingXmm, double spacingYmm)
 
 QRectF DistanceItem::boundingRect() const
 {
-    const double m = kHandleRadiusPx + 20.0;
+    const double m = MeasurementTool::kHandleRadiusPx + 20.0;
     return QRectF(p1_, p2_).normalized().adjusted(-m, -m, m, m);
 }
 
@@ -92,8 +92,8 @@ void DistanceItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWi
     // 手柄
     painter->setBrush(line);
     painter->setPen(Qt::NoPen);
-    painter->drawEllipse(p1_, kHandleRadiusPx / 2, kHandleRadiusPx / 2);
-    painter->drawEllipse(p2_, kHandleRadiusPx / 2, kHandleRadiusPx / 2);
+    painter->drawEllipse(p1_, MeasurementTool::kHandleRadiusPx / 2, MeasurementTool::kHandleRadiusPx / 2);
+    painter->drawEllipse(p2_, MeasurementTool::kHandleRadiusPx / 2, MeasurementTool::kHandleRadiusPx / 2);
 
     // 标签（距离）
     const double mm = MeasurementTool::physicalDistance(p1_, p2_, spacingX_, spacingY_);
@@ -116,9 +116,9 @@ void DistanceItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWi
 int DistanceItem::hitHandle(const QPointF& scenePos) const
 {
     const QPointF p = mapFromScene(scenePos);
-    if (QLineF(p, p1_).length() <= kHandleRadiusPx)
+    if (QLineF(p, p1_).length() <= MeasurementTool::kHandleRadiusPx)
         return 0;
-    if (QLineF(p, p2_).length() <= kHandleRadiusPx)
+    if (QLineF(p, p2_).length() <= MeasurementTool::kHandleRadiusPx)
         return 1;
     return -1;
 }
@@ -158,7 +158,7 @@ void AngleItem::setPoints(const QPointF& a, const QPointF& vertex, const QPointF
 
 QRectF AngleItem::boundingRect() const
 {
-    const double m = kHandleRadiusPx + 20.0;
+    const double m = MeasurementTool::kHandleRadiusPx + 20.0;
     return QRectF(QPointF(std::min({a_.x(), v_.x(), b_.x()}),
                           std::min({a_.y(), v_.y(), b_.y()})),
                   QPointF(std::max({a_.x(), v_.x(), b_.x()}),
@@ -191,9 +191,9 @@ void AngleItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidge
     // 手柄
     painter->setBrush(line);
     painter->setPen(Qt::NoPen);
-    painter->drawEllipse(a_, kHandleRadiusPx / 2, kHandleRadiusPx / 2);
-    painter->drawEllipse(v_, kHandleRadiusPx / 2, kHandleRadiusPx / 2);
-    painter->drawEllipse(b_, kHandleRadiusPx / 2, kHandleRadiusPx / 2);
+    painter->drawEllipse(a_, MeasurementTool::kHandleRadiusPx / 2, MeasurementTool::kHandleRadiusPx / 2);
+    painter->drawEllipse(v_, MeasurementTool::kHandleRadiusPx / 2, MeasurementTool::kHandleRadiusPx / 2);
+    painter->drawEllipse(b_, MeasurementTool::kHandleRadiusPx / 2, MeasurementTool::kHandleRadiusPx / 2);
 
     // 标签（角度）
     const QString label = MeasurementTool::formatAngle(deg);
@@ -214,11 +214,11 @@ void AngleItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidge
 int AngleItem::hitHandle(const QPointF& scenePos) const
 {
     const QPointF p = mapFromScene(scenePos);
-    if (QLineF(p, a_).length() <= kHandleRadiusPx)
+    if (QLineF(p, a_).length() <= MeasurementTool::kHandleRadiusPx)
         return 0;
-    if (QLineF(p, v_).length() <= kHandleRadiusPx)
+    if (QLineF(p, v_).length() <= MeasurementTool::kHandleRadiusPx)
         return 1;
-    if (QLineF(p, b_).length() <= kHandleRadiusPx)
+    if (QLineF(p, b_).length() <= MeasurementTool::kHandleRadiusPx)
         return 2;
     return -1;
 }

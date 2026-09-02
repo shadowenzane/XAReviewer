@@ -81,7 +81,7 @@ QTabBar::tab {
     border-top-left-radius: 4px; border-top-right-radius: 4px;
 }
 QTabBar::tab:selected { background-color: %2; border-bottom-color: %7; }
-)"
+)")
     .arg(QLatin1String(bgColor()), QLatin1String(panelColor()),
          QLatin1String(panelAltColor()), QLatin1String(borderColor()),
          QLatin1String(textColor()), QLatin1String(textDimColor()),

@@ -1,6 +1,6 @@
 #include "MainWindow.h"
 #include "ControlPanel.h"
-#include "Exporter.h"
+#include "../export/Exporter.h"
 #include "ImageViewer.h"
 #include "PacsQueryDialog.h"
 #include "Theme.h"
