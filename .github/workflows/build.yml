@@ -4,9 +4,14 @@ on:
   push:
     tags:
       - 'v*'  # 当推送以 v 开头的标签时触发
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build-windows:
+    name: Windows x64 (exe)
     runs-on: windows-latest
     steps:
       - name: Checkout code
@@ -34,9 +39,110 @@ jobs:
           name: XAReviewer-Windows
           path: dist/*.exe
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+  build-macos:
+    name: macOS (dmg)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          files: dist/*.exe
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          pip install numpy pydicom opencv-python scipy pynetdicom PyQt5
+
+      - name: Build .app with PyInstaller
+        run: |
+          pyinstaller --windowed --name XAReviewer XAReviewer_4.8.py
+          ls -la dist/
+
+      - name: Smoke test (offscreen 启动 15 秒，验证依赖打包完整)
+        run: |
+          QT_QPA_PLATFORM=offscreen ./dist/XAReviewer.app/Contents/MacOS/XAReviewer &
+          APP_PID=$!
+          sleep 15
+          if kill -0 $APP_PID 2>/dev/null; then
+            echo "App launched and stayed running - bundling OK"
+            kill $APP_PID 2>/dev/null || true
+            sleep 2
+            kill -9 $APP_PID 2>/dev/null || true
+            wait $APP_PID 2>/dev/null || true
+          else
+            wait $APP_PID; rc=$?
+            echo "App exited early with code $rc"
+            exit 1
+          fi
+
+      - name: Ad-hoc codesign (arm64 上避免"已损坏"提示)
+        run: |
+          codesign --force --deep --sign - dist/XAReviewer.app
+          codesign --verify --deep dist/XAReviewer.app
+
+      - name: Create DMG
+        run: |
+          set -euxo pipefail
+          rm -rf dmg-staging && mkdir -p dmg-staging
+          cp -R dist/XAReviewer.app dmg-staging/
+          ln -s /Applications dmg-staging/Applications
+          hdiutil create -volname "XAReviewer" \
+            -srcfolder dmg-staging \
+            -ov -format UDZO -fs "HFS+J" \
+            XAReviewer-macOS.dmg
+          # CI 内校验镜像可挂载，杜绝坏镜像发布
+          hdiutil verify XAReviewer-macOS.dmg
+          hdiutil imageinfo XAReviewer-macOS.dmg | grep -E "Format:|Filesystem Name:"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: XAReviewer-macOS
+          path: XAReviewer-macOS.dmg
+
+  release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      # 先以 draft 创建、上传全部资产后再发布（避免已发布 Release 无法追加资产）
+      - name: Create draft release and publish
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          WIN=$(find dist -name '*.exe' | head -1)
+          MAC=$(find dist -name '*.dmg' | head -1)
+          {
+            echo "XAReviewer $TAG — Python (PyQt5) 版"
+            echo ""
+            echo "- Windows x64: \`XAReviewer_4.8.exe\`（单文件，双击即用）"
+            echo "- macOS (Apple Silicon): \`XAReviewer-macOS.dmg\`（拖入 Applications 安装）"
+            echo ""
+            echo "## macOS 首次打开"
+            echo "App 为 ad-hoc 签名（未做 Apple 公证）。首次打开若提示\"已损坏\"或\"无法验证开发者\"："
+            echo "右键 App → 打开 → 再点\"打开\"；或执行："
+            echo '```bash'
+            echo 'xattr -cr /Applications/XAReviewer.app'
+            echo '```'
+            echo ""
+            echo "## SHA256"
+            echo '```'
+            sha256sum "$WIN" "$MAC"
+            echo '```'
+          } > NOTES.md
+          gh release create "$TAG" "$WIN" "$MAC" \
+            --draft --verify-tag --repo "$GITHUB_REPOSITORY" \
+            --title "XAReviewer $TAG" \
+            --notes-file NOTES.md
+          gh release edit "$TAG" --draft=false --repo "$GITHUB_REPOSITORY"
