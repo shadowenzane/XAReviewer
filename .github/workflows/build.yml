@@ -40,8 +40,20 @@ jobs:
           path: dist/*.exe
 
   build-macos:
-    name: macOS (dmg)
-    runs-on: macos-latest
+    name: macOS ${{ matrix.name }} (dmg)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Apple Silicon (M1/M2/M3/M4)：原生 arm64
+          - runner: macos-latest
+            name: AppleSilicon
+            arch: arm64
+          # Intel 芯片 Mac：原生 x86_64（修复"双击无反应"）
+          - runner: macos-15-intel
+            name: Intel
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -62,6 +74,16 @@ jobs:
           pyinstaller --windowed --name XAReviewer XAReviewer_4.8.py
           ls -la dist/
 
+      - name: Verify binary architecture (防止架构打错)
+        run: |
+          BIN=dist/XAReviewer.app/Contents/MacOS/XAReviewer
+          QT_LIB=dist/XAReviewer.app/Contents/Frameworks/PyQt5/Qt5/lib/QtCore.framework/Versions/5/QtCore
+          echo "主程序: $(file -b "$BIN")"
+          echo "QtCore:  $(file -b "$QT_LIB")"
+          # 主程序与 Qt 库架构必须一致，且必须是本次 matrix 目标架构
+          file -b "$BIN" | grep -q "${{ matrix.arch }}"
+          file -b "$QT_LIB" | grep -q "${{ matrix.arch }}"
+
       - name: Smoke test (offscreen 启动 15 秒，验证依赖打包完整)
         run: |
           QT_QPA_PLATFORM=offscreen ./dist/XAReviewer.app/Contents/MacOS/XAReviewer &
@@ -79,7 +101,7 @@ jobs:
             exit 1
           fi
 
-      - name: Ad-hoc codesign (arm64 上避免"已损坏"提示)
+      - name: Ad-hoc codesign (避免"已损坏"提示)
         run: |
           codesign --force --deep --sign - dist/XAReviewer.app
           codesign --verify --deep dist/XAReviewer.app
@@ -90,19 +112,19 @@ jobs:
           rm -rf dmg-staging && mkdir -p dmg-staging
           cp -R dist/XAReviewer.app dmg-staging/
           ln -s /Applications dmg-staging/Applications
-          hdiutil create -volname "XAReviewer" \
+          hdiutil create -volname "XAReviewer-${{ matrix.name }}" \
             -srcfolder dmg-staging \
             -ov -format UDZO -fs "HFS+J" \
-            XAReviewer-macOS.dmg
+            "XAReviewer-macOS-${{ matrix.name }}.dmg"
           # CI 内校验镜像可挂载，杜绝坏镜像发布
-          hdiutil verify XAReviewer-macOS.dmg
-          hdiutil imageinfo XAReviewer-macOS.dmg | grep -E "Format:|Filesystem Name:"
+          hdiutil verify "XAReviewer-macOS-${{ matrix.name }}.dmg"
+          hdiutil imageinfo "XAReviewer-macOS-${{ matrix.name }}.dmg" | grep -E "Format:|Filesystem Name:"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: XAReviewer-macOS
-          path: XAReviewer-macOS.dmg
+          name: XAReviewer-macOS-${{ matrix.name }}
+          path: XAReviewer-macOS-${{ matrix.name }}.dmg
 
   release:
     name: Publish release
@@ -122,12 +144,23 @@ jobs:
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           WIN=$(find dist -name '*.exe' | head -1)
-          MAC=$(find dist -name '*.dmg' | head -1)
+          MAC_ARM=$(find dist -name '*AppleSilicon*.dmg' | head -1)
+          MAC_INTEL=$(find dist -name '*Intel*.dmg' | head -1)
+          [ -n "$MAC_ARM" ] || { echo "ERROR: Apple Silicon dmg missing"; exit 1; }
+          [ -n "$MAC_INTEL" ] || { echo "ERROR: Intel dmg missing"; exit 1; }
           {
             echo "XAReviewer $TAG — Python (PyQt5) 版"
             echo ""
             echo "- Windows x64: \`XAReviewer_4.8.exe\`（单文件，双击即用）"
-            echo "- macOS (Apple Silicon): \`XAReviewer-macOS.dmg\`（拖入 Applications 安装）"
+            echo "- macOS (Apple Silicon, M1/M2/M3/M4): \`XAReviewer-macOS-AppleSilicon.dmg\`"
+            echo "- macOS (Intel 芯片): \`XAReviewer-macOS-Intel.dmg\`"
+            echo ""
+            echo "## 如何选择 macOS 版本"
+            echo "点击左上角苹果菜单 →「关于本机」："
+            echo "- 芯片显示 **Apple M1/M2/M3/M4** → 下载 \`AppleSilicon\` 版"
+            echo "- 处理器显示 **Intel Core ...** → 下载 \`Intel\` 版"
+            echo ""
+            echo "下载错误的架构会导致双击无反应。"
             echo ""
             echo "## macOS 首次打开"
             echo "App 为 ad-hoc 签名（未做 Apple 公证）。首次打开若提示\"已损坏\"或\"无法验证开发者\"："
@@ -138,10 +171,10 @@ jobs:
             echo ""
             echo "## SHA256"
             echo '```'
-            sha256sum "$WIN" "$MAC"
+            sha256sum "$WIN" "$MAC_ARM" "$MAC_INTEL"
             echo '```'
           } > NOTES.md
-          gh release create "$TAG" "$WIN" "$MAC" \
+          gh release create "$TAG" "$WIN" "$MAC_ARM" "$MAC_INTEL" \
             --draft --verify-tag --repo "$GITHUB_REPOSITORY" \
             --title "XAReviewer $TAG" \
             --notes-file NOTES.md
