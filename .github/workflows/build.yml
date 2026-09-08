@@ -61,7 +61,9 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          # 3.12 → scipy>=1.16（旧工具链编译的 Fortran 扩展在新版 macOS
+          # dyld 严格校验下无法加载；1.15.x 仅支持到 Python 3.10）
+          python-version: '3.12'
 
       - name: Install dependencies
         run: |
@@ -84,6 +86,19 @@ jobs:
           file -b "$BIN" | grep -q "${{ matrix.arch }}"
           file -b "$QT_LIB" | grep -q "${{ matrix.arch }}"
 
+      # 修补 Mach-O 零填充段 offset（scipy/opencv 的旧工具链二进制
+      # 在 macOS 26.2+ 上被 dyld 拒绝加载，报错：
+      # "zero-fill section type, but offset field is not zero"）
+      # 必须在 codesign 之前执行，修补后重新签名。
+      - name: Patch zero-fill section offsets (macOS 26+ dyld 兼容)
+        run: python3 scripts/patch_zerofill.py dist/XAReviewer.app
+
+      - name: Ad-hoc codesign (避免"已损坏"提示)
+        run: |
+          codesign --force --deep --sign - dist/XAReviewer.app
+          codesign --verify --deep dist/XAReviewer.app
+
+      # 冒烟测试放在签名之后：验证的就是最终交付的二进制
       - name: Smoke test (offscreen 启动 15 秒，验证依赖打包完整)
         run: |
           QT_QPA_PLATFORM=offscreen ./dist/XAReviewer.app/Contents/MacOS/XAReviewer &
@@ -100,11 +115,6 @@ jobs:
             echo "App exited early with code $rc"
             exit 1
           fi
-
-      - name: Ad-hoc codesign (避免"已损坏"提示)
-        run: |
-          codesign --force --deep --sign - dist/XAReviewer.app
-          codesign --verify --deep dist/XAReviewer.app
 
       - name: Create DMG
         run: |
