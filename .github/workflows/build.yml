@@ -31,7 +31,7 @@ jobs:
 
       - name: Build with PyInstaller
         run: |
-          pyinstaller --onefile --windowed --icon=icon.ico XAReviewer_4.8.py
+          pyinstaller --onefile --windowed --icon=batman.ico XAReviewer_4.8.py
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -71,9 +71,14 @@ jobs:
           pip install pyinstaller
           pip install numpy pydicom opencv-python scipy pynetdicom PyQt5
 
+      - name: Generate icon.icns from batman.ico
+        run: |
+          pip install pillow
+          python3 scripts/make_icns.py batman.ico icon.icns
+
       - name: Build .app with PyInstaller
         run: |
-          pyinstaller --windowed --name XAReviewer XAReviewer_4.8.py
+          pyinstaller --windowed --name XAReviewer --icon=icon.icns XAReviewer_4.8.py
           ls -la dist/
 
       - name: Verify binary architecture (防止架构打错)
